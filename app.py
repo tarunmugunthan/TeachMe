@@ -1,7 +1,8 @@
 # app.py
 from flask import Flask, render_template, request, Response, stream_with_context
-import OpenAI
+from openai import OpenAI
 import json
+import os
 
 app = Flask(__name__)
 
@@ -33,7 +34,7 @@ def chat():
     def generate():
         try:
             completion = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an educator for children or a JSON-only provider depending on the situation"},
                     {"role": "user", "content": prompt}
