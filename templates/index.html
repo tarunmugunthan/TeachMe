@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeachMe</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4F46E5',
+                    },
+                    animation: {
+                        'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        pulse: {
+                            '0%, 100%': { opacity: 1 },
+                            '50%': { opacity: .5 },
+                        }
+                    },
+                }
+            },
+        }
+    </script>
+</head>
+<body class="h-full flex flex-col">
+    <nav class="bg-gray-800 p-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 class="text-white font-bold text-xl">TeachMe 🧑🏻‍🏫</h1>
+        </div>
+    </nav>
+
+    <main class="flex-grow flex flex-col p-4 sm:p-6 lg:p-8 overflow-hidden">
+        <div id="chat-container" class="flex-grow border border-gray-300 rounded-lg overflow-y-auto mb-4 p-4"></div>
+        
+        <div id="input-area" class="sticky bottom-0 bg-gray-100 pt-4">
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <select id="option-select" class="w-full sm:w-1/4 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                    <option value="Teach me about">Teach me about</option>
+                    <option value="Quiz me about">Quiz me about</option>
+                    <option value="Give me flashcards about">Give me flashcards about</option>
+                    <option value="Suggest Books about">Suggest Books about</option>
+                </select>
+                <input type="text" id="user-input" placeholder="Type your message..." class="w-full sm:flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                <button id="send-button" class="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-80 transition duration-150 ease-in-out">
+                    Send
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        $(document).ready(function() {
+    let chatStarted = false;
+    const allOptions = [
+        "Open question",
+        "Teach me about",
+        "Quiz me about",
+        "Give me flashcards about",
+        "Suggest Books about"
+    ];
+
+    function createWelcomeMessage() {
+        const welcomeHtml = `
+            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-4 rounded">
+                <h2 class="font-bold text-lg mb-2">Welcome to Your Interactive Learning Assistant!</h2>
+                <p class="mb-2">I'm here to help you learn about any topic you're interested in. You can:</p>
+                <ul class="list-disc pl-5 mb-2">
+                    <li>Ask me to teach you about a subject</li>
+                    <li>Take a quiz on a topic</li>
+                    <li>Get flashcards to study</li>
+                    <li>Get book suggestions on a topic</li>
+                </ul>
+                <p>To get started, select an option from the dropdown menu and enter a topic you'd like to explore!</p>
+            </div>
+        `;
+        $('#chat-container').append(welcomeHtml);
+    }
+
+    createWelcomeMessage();
+
+    function createOptionButtons(topic, previousOption) {
+        let followUpOptions = allOptions.filter(option => option !== "Open question" && option !== previousOption);
+        
+        let optionButtonsHtml = followUpOptions.map(option => 
+            `<button class="option-button m-1 px-3 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-full text-sm transition duration-150 ease-in-out" data-option="${option}" data-topic="${topic}">${option}</button>`
+        ).join('');
+
+        return optionButtonsHtml;
+    }
+
+    function renderQuiz(quizData) {
+        let quizHtml = '<div class="quiz-container space-y-4">';
+        quizData.questions.forEach((q, index) => {
+            quizHtml += `
+                <div class="quiz-question bg-white shadow rounded-lg p-4" data-correct="${q.correct_answer}" data-explanation="${q.explanation}">
+                    <p class="font-bold mb-2">Question ${index + 1}: ${q.question}</p>
+                    <ul class="quiz-options space-y-2">
+                        ${q.options.map((option, optIndex) => `
+                            <li class="quiz-option">
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="q${index}" value="${String.fromCharCode(65 + optIndex)}" class="form-radio text-primary">
+                                    <span class="ml-2">${option}</span>
+                                </label>
+                            </li>
+                        `).join('')}
+                    </ul>
+                    <div class="quiz-feedback mt-2 hidden"></div>
+                </div>
+            `;
+        });
+        quizHtml += '<button class="quiz-submit mt-4 px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark transition duration-150 ease-in-out">Submit Quiz</button>';
+        quizHtml += '<div class="quiz-result mt-4 font-bold"></div>';
+        quizHtml += '</div>';
+        return quizHtml;
+    }
+
+    function renderFlashcards(flashcardsData) {
+        let currentCard = 0;
+        const flashcards = flashcardsData.flashcards;
+
+        let flashcardsHtml = `
+            <div class="w-full max-w-sm mx-auto">
+                <div class="flashcard bg-white border border-gray-200 rounded-lg shadow-md p-4 h-64 sm:h-80 flex flex-col justify-center cursor-pointer transition-all duration-300 ease-in-out">
+                    <div class="flashcard-content">
+                        <div class="flashcard-front">
+                            <p class="text-sm text-gray-500 mb-2">Question:</p>
+                            <p class="text-lg sm:text-xl">${flashcards[currentCard].front}</p>
+                        </div>
+                        <div class="flashcard-back hidden">
+                            <p class="text-sm text-gray-500 mb-2">Answer:</p>
+                            <p class="text-lg sm:text-xl">${flashcards[currentCard].back}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center mt-4">
+                    <button class="prev-card px-2 sm:px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition duration-150 ease-in-out text-sm sm:text-base">Previous</button>
+                    <span class="card-number text-sm sm:text-base">Card 1 of ${flashcards.length}</span>
+                    <button class="next-card px-2 sm:px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition duration-150 ease-in-out text-sm sm:text-base">Next</button>
+                </div>
+                <div class="mt-4">
+                    <button class="download-pdf w-full px-4 py-2 bg-primary text-white rounded hover:bg-opacity-80 transition duration-150 ease-in-out text-sm sm:text-base">Download Flashcards as PDF</button>
+                </div>
+            </div>
+        `;
+
+        let $flashcardsContainer = $(flashcardsHtml);
+
+        $flashcardsContainer.on('click', '.flashcard', function() {
+            const $this = $(this);
+            const $front = $this.find('.flashcard-front');
+            const $back = $this.find('.flashcard-back');
+            
+            $this.addClass('animate-pulse');
+            setTimeout(() => {
+                if ($back.hasClass('hidden')) {
+                    $front.addClass('hidden');
+                    $back.removeClass('hidden');
+                    $this.removeClass('bg-white').addClass('bg-blue-100');
+                } else {
+                    $front.removeClass('hidden');
+                    $back.addClass('hidden');
+                    $this.removeClass('bg-blue-100').addClass('bg-white');
+                }
+                $this.removeClass('animate-pulse');
+            }, 150);
+        });
+
+        $flashcardsContainer.on('click', '.prev-card', function() {
+            if (currentCard > 0) {
+                currentCard--;
+                updateCard();
+            }
+        });
+
+        $flashcardsContainer.on('click', '.next-card', function() {
+            if (currentCard < flashcards.length - 1) {
+                currentCard++;
+                updateCard();
+            }
+        });
+
+        $flashcardsContainer.on('click', '.download-pdf', function() {
+            generateFlashcardsPDF(flashcards);
+        });
+
+        function updateCard() {
+            const $flashcard = $flashcardsContainer.find('.flashcard');
+            const $front = $flashcard.find('.flashcard-front');
+            const $back = $flashcard.find('.flashcard-back');
+            
+            $flashcard.addClass('animate-pulse');
+            setTimeout(() => {
+                $front.removeClass('hidden').find('p:last-child').text(flashcards[currentCard].front);
+                $back.addClass('hidden').find('p:last-child').text(flashcards[currentCard].back);
+                $flashcard.removeClass('bg-blue-100').addClass('bg-white');
+                $flashcardsContainer.find('.card-number').text(`Card ${currentCard + 1} of ${flashcards.length}`);
+                $flashcard.removeClass('animate-pulse');
+            }, 150);
+        }
+
+        return $flashcardsContainer;
+    }
+
+    function generateFlashcardsPDF(flashcards) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        const cardWidth = (pageWidth - 3 * margin) / 2;
+        const cardHeight = 60;
+
+        flashcards.forEach((card, index) => {
+            if (index > 0 && index % 2 === 0) {
+                doc.addPage();
+            }
+
+            const xPosition = index % 2 === 0 ? margin : pageWidth / 2 + margin / 2;
+            const yPosition = index % 2 === 0 ? margin : pageHeight / 2 + margin;
+
+            // Draw question card
+            doc.setFillColor(255, 255, 255);
+            doc.rect(xPosition, yPosition, cardWidth, cardHeight, 'F');
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(12);
+            doc.text("Question:", xPosition + 5, yPosition + 10);
+            doc.setFontSize(10);
+            doc.text(doc.splitTextToSize(card.front, cardWidth - 10), xPosition + 5, yPosition + 20);
+
+            // Draw answer card
+            doc.setFillColor(173, 216, 230); // Light blue
+            doc.rect(xPosition, yPosition + cardHeight + margin, cardWidth, cardHeight, 'F');
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(12);
+            doc.text("Answer:", xPosition + 5, yPosition + cardHeight + margin + 10);
+            doc.setFontSize(10);
+            doc.text(doc.splitTextToSize(card.back, cardWidth - 10), xPosition + 5, yPosition + cardHeight + margin + 20);
+        });
+
+        doc.save("flashcards.pdf");
+    }
+
+    function suggestBooks(searchTerms, retryCount = 0) {
+        const query = searchTerms.join('_');
+        const url = `https://openlibrary.org/search.json?title=${query}&fields=author_name,isbn,key,title,subtitle&limit=10`;
+
+        // Simple placeholder image as a data URI
+        const defaultImageUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+        return fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.docs.length === 0 && retryCount < 1) {
+                    // If no books found and it's the first attempt, retry with the model
+                    console.log("No books found. Retrying with the model...");
+                    return retryWithModel(searchTerms);
+                }
+
+                if (data.docs.length === 0) {
+                    // If still no books found after retry, throw an error
+                    throw new Error("No books found on Open Library");
+                }
+
+                let booksHtml = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">';
+                data.docs.forEach(book => {
+                    const isbn = book.isbn ? book.isbn[0] : '';
+                    const imageUrl = isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg` : defaultImageUrl;
+                    const bookUrl = `https://openlibrary.org${book.key}`;
+                    booksHtml += `
+                        <a href="${bookUrl}" target="_blank" class="book-card bg-white rounded-lg shadow-md overflow-hidden flex flex-col hover:shadow-lg transition duration-300">
+                            <div class="h-48 overflow-hidden bg-gray-200 flex items-center justify-center">
+                                <img src="${imageUrl}" alt="${book.title}" class="w-full h-full object-contain" onerror="this.onerror=null; this.src='${defaultImageUrl}';">
+                            </div>
+                            <div class="p-4 flex-grow">
+                                <h3 class="font-bold text-lg mb-2 line-clamp-2">${book.title}</h3>
+                                ${book.subtitle ? `<p class="text-sm text-gray-600 mb-2 line-clamp-2">${book.subtitle}</p>` : ''}
+                                ${book.author_name ? `<p class="text-sm text-gray-500">By ${book.author_name.join(', ')}</p>` : ''}
+                            </div>
+                        </a>
+                    `;
+                });
+                booksHtml += '</div>';
+                return booksHtml;
+            });
+    }
+
+    function retryWithModel(searchTerms) {
+        // This function will make a new request to your backend to get new search terms from the model
+        return fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({option: "Suggest Books about", message: searchTerms.join(' ')}),
+        })
+        .then(response => response.json())
+        .then(data => {
+            const newSearchTerms = JSON.parse(data.content).searchTerms;
+            console.log("New search terms from model:", newSearchTerms);
+            return suggestBooks(newSearchTerms, 1); // Retry with new terms, increment retry count
+        });
+    }
+
+    function sendMessage(option, message) {
+        if (message.trim() === '') return;
+
+        let displayOption = option === "Open question" ? "" : option + " ";
+        $('#chat-container').append(`<p class="mb-2"><strong class="text-primary">You:</strong> ${displayOption}${message}</p>`);
+        $('#user-input').val('');
+
+        let responseWrapper = $('<div class="response-wrapper mb-6"></div>');
+        let responseContainer = $(`
+            <div class="chatbot-response bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="bg-gray-100 p-4 border-b border-gray-200">
+                    <p class="font-bold text-gray-800">TeachMe:</p>
+                </div>
+                <div class="response-text p-4"></div>
+            </div>
+        `);
+        responseWrapper.append(responseContainer);
+        $('#chat-container').append(responseWrapper);
+
+        let responseText = responseContainer.find('.response-text');
+
+        if (!chatStarted) {
+            chatStarted = true;
+            $('#option-select').append('<option value="Open question">Open question</option>');
+        }
+
+        // Set the dropdown to "Open question" after every interaction
+        $('#option-select').val("Open question");
+
+        let fullResponse = '';
+        
+        fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({option: option, message: message}),
+        })
+        .then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            function readStream() {
+                reader.read().then(({done, value}) => {
+                    if (done) {
+                        console.log('Stream complete');
+                        if (option === "Quiz me about") {
+                            try {
+                                const quizData = JSON.parse(fullResponse);
+                                responseText.html(renderQuiz(quizData));
+                            } catch (e) {
+                                console.error('Error parsing quiz JSON:', e);
+                                responseText.html('<p class="text-red-500">Error: Failed to generate a valid quiz.</p>');
+                            }
+                        } else if (option === "Give me flashcards about") {
+                            try {
+                                const flashcardsData = JSON.parse(fullResponse);
+                                responseText.html(renderFlashcards(flashcardsData));
+                            } catch (e) {
+                                console.error('Error parsing flashcards JSON:', e);
+                                responseText.html('<p class="text-red-500">Error: Failed to generate valid flashcards.</p>');
+                            }
+                        } else if (option === "Suggest Books about") {
+                            try {
+                                const searchTerms = JSON.parse(fullResponse).searchTerms;
+                                console.log("Search terms returned by the model:", searchTerms);
+                                responseText.html('<p>Searching for books...</p>');
+                                suggestBooks(searchTerms)
+                                    .then(booksHtml => {
+                                        responseText.html(booksHtml);
+                                        $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
+                                    })
+                                    .catch(error => {
+                                        console.error('Error fetching books:', error);
+                                        if (error.message === "No books found on Open Library") {
+                                            responseText.html('<p class="text-red-500">No books found on Open Library.</p>');
+                                        } else {
+                                            responseText.html('<p class="text-red-500">Error: Failed to fetch book suggestions.</p>');
+                                        }
+                                    });
+                            } catch (e) {
+                                console.error('Error parsing search terms JSON:', e);
+                                responseText.html('<p class="text-red-500">Error: Failed to generate book suggestions.</p>');
+                            }
+                        } else {
+                            responseText.html(marked.parse(fullResponse));
+                        }
+                        
+                        responseWrapper.append(`
+                            <div class="follow-up-options mt-4">
+                                <p class="text-sm text-gray-600 mb-2">Follow-up options:</p>
+                                ${createOptionButtons(message, option)}
+                            </div>
+                        `);
+                        
+                        $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
+                        return;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n\n');
+                    lines.forEach(line => {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                console.log('Response complete');
+                            } else {
+                                try {
+                                    const parsed = JSON.parse(data);
+                                    if (parsed.content) {
+                                        fullResponse += parsed.content;
+                                        if (option !== "Quiz me about" && option !== "Give me flashcards about" && option !== "Suggest Books about") {
+                                            responseText.html(marked.parse(fullResponse));
+                                        }
+                                        $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
+                                    } else if (parsed.error) {
+                                        responseText.append(`<span class="text-red-500">Error: ${parsed.error}</span>`);
+                                    }
+                                } catch (e) {
+                                    console.error('Error parsing JSON:', e);
+                                }
+                            }
+                        }
+                    });
+
+                    readStream();
+                });
+            }
+
+            readStream();
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            responseText.append(`<span class="text-red-500">Error: ${error.message}</span>`);
+        });
+    }
+
+    $(document).on('click', '.quiz-submit', function() {
+        const quizContainer = $(this).closest('.quiz-container');
+        const questions = quizContainer.find('.quiz-question');
+        let score = 0;
+        let totalQuestions = questions.length;
+
+        questions.each(function(index) {
+            const $question = $(this);
+            const selectedAnswer = $question.find('input[type="radio"]:checked').val();
+            const correctAnswer = $question.data('correct');
+            const explanation = $question.data('explanation');
+            const $feedback = $question.find('.quiz-feedback');
+
+            if (selectedAnswer === correctAnswer) {
+                score++;
+                $feedback.html(`<p class="text-green-600">Correct! ${explanation}</p>`);
+            } else {
+                $feedback.html(`<p class="text-red-600">Incorrect. The correct answer is ${correctAnswer}. ${explanation}</p>`);
+            }
+            $feedback.removeClass('hidden');
+        });
+
+        const resultText = `You scored ${score} out of ${totalQuestions}.`;
+        quizContainer.find('.quiz-result').text(resultText);
+        $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+    });
+
+    $('#send-button').click(function() {
+        let message = $('#user-input').val();
+        let option = $('#option-select').val();
+        sendMessage(option, message);
+    });
+
+    $('#user-input').keypress(function(e) {
+        if (e.which == 13) {
+            let message = $('#user-input').val();
+            let option = $('#option-select').val();
+            sendMessage(option, message);
+        }
+    });
+
+    $(document).on('click', '.option-button', function() {
+        let option = $(this).data('option');
+        let topic = $(this).data('topic');
+        $('#option-select').val(option);
+        $('#user-input').val(topic);
+        sendMessage(option, topic);
+    });
+});
+    </script>
+</body>
+</html>
