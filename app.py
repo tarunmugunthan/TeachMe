@@ -1,6 +1,6 @@
 # app.py
 from flask import Flask, render_template, request, Response, stream_with_context
-from openai import OpenAI
+import OpenAI
 import json
 
 app = Flask(__name__)
