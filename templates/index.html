@@ -29,31 +29,31 @@
         }
     </script>
 </head>
-    <body class="h-screen flex flex-col">
-        <nav class="bg-gray-800 p-4 hidden sm:block">  <!-- Hide on mobile -->
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <h1 class="text-white font-bold text-xl">TeachMe 🧑🏻‍🏫</h1>
+<body class="h-full flex flex-col">
+    <nav class="bg-gray-800 p-4 hidden sm:block">  <!-- Hide on mobile -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 class="text-white font-bold text-xl">TeachMe 🧑🏻‍🏫</h1>
+        </div>
+    </nav>
+
+    <main class="flex-grow flex flex-col p-2 sm:p-6 lg:p-8 overflow-hidden">
+        <div id="chat-container" class="flex-grow border border-gray-300 rounded-lg overflow-y-auto mb-2 sm:mb-4 p-2 sm:p-4"></div>
+        
+        <div id="input-area" class="sticky bottom-0 bg-gray-100 pt-2 sm:pt-4">
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <select id="option-select" class="w-full sm:w-1/4 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                    <option value="Teach me about">Teach me about</option>
+                    <option value="Quiz me about">Quiz me about</option>
+                    <option value="Give me flashcards about">Give me flashcards about</option>
+                    <option value="Suggest Books about">Suggest Books about</option>
+                </select>
+                <input type="text" id="user-input" placeholder="Type your message..." class="w-full sm:flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                <button id="send-button" class="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-80 transition duration-150 ease-in-out">
+                    Send
+                </button>
             </div>
-        </nav>
-    
-        <main class="flex-grow flex flex-col p-4 sm:p-6 lg:p-8 overflow-hidden">
-            <div id="chat-container" class="flex-grow border border-gray-300 rounded-lg overflow-y-auto mb-4 p-4"></div>
-            
-            <div id="input-area" class="sticky bottom-0 bg-gray-100 pt-4">
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                    <select id="option-select" class="w-full sm:w-1/4 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
-                        <option value="Teach me about">Teach me about</option>
-                        <option value="Quiz me about">Quiz me about</option>
-                        <option value="Give me flashcards about">Give me flashcards about</option>
-                        <option value="Suggest Books about">Suggest Books about</option>
-                    </select>
-                    <input type="text" id="user-input" placeholder="Type your message..." class="w-full sm:flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
-                    <button id="send-button" class="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-80 transition duration-150 ease-in-out">
-                        Send
-                    </button>
-                </div>
-            </div>
-        </main>
+        </div>
+    </main>
 
     <script>
         $(document).ready(function() {
@@ -247,8 +247,15 @@
         doc.save("flashcards.pdf");
     }
 
-    function suggestBooks(searchTerms, retryCount = 0) {
-    const query = searchTerms.join('_');
+    function suggestBooks(searchTerms, retryCount = 0, originalQuery = '') {
+    let query;
+    if (Array.isArray(searchTerms)) {
+        query = searchTerms.join('_');
+    } else {
+        query = searchTerms.replace(/\s+/g, '_');
+        originalQuery = originalQuery || query;
+    }
+    
     const url = `https://openlibrary.org/search.json?title=${query}&fields=author_name,isbn,key,title,subtitle&limit=10`;
 
     const defaultImageUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -256,13 +263,13 @@
     return fetch(url)
         .then(response => response.json())
         .then(data => {
-            if (data.docs.length === 0 && retryCount < 1) {
-                console.log("No books found. Retrying with the model...");
-                return retryWithModel(searchTerms);
-            }
-
             if (data.docs.length === 0) {
-                throw new Error("No books found on Open Library");
+                if (retryCount < 3) {
+                    console.log(`No books found. Retrying (attempt ${retryCount + 1})...`);
+                    return retryWithModel(searchTerms, originalQuery, retryCount + 1);
+                } else {
+                    throw new Error("No books found on Open Library after multiple attempts");
+                }
             }
 
             let booksHtml = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">';
@@ -292,30 +299,47 @@
         });
 }
 
-    function retryWithModel(searchTerms) {
+function retryWithModel(searchTerms, originalQuery, retryCount) {
     return fetch('/chat', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({option: "Suggest Books about", message: searchTerms.join(' ')}),
+        body: JSON.stringify({option: "Suggest Books about", message: Array.isArray(searchTerms) ? searchTerms.join(' ') : searchTerms}),
     })
-    .then(response => response.text())  // Change this line from response.json() to response.text()
+    .then(response => response.text())
     .then(text => {
-        // Extract the JSON part from the response
-        const jsonMatch = text.match(/data: ({.*})/);
-        if (jsonMatch) {
-            const data = JSON.parse(jsonMatch[1]);
-            const newSearchTerms = JSON.parse(data.content).searchTerms.slice(0, 1);  // Take only first two keywords
-            console.log("New search terms from model:", newSearchTerms);
-            return suggestBooks(newSearchTerms, 1);
-        } else {
-            throw new Error("Invalid response format from the model");
+        let newSearchTerms;
+        try {
+            const jsonMatch = text.match(/data: ({.*})/);
+            if (jsonMatch) {
+                const data = JSON.parse(jsonMatch[1]);
+                newSearchTerms = JSON.parse(data.content).searchTerms;
+            } else {
+                throw new Error("Invalid response format from the model");
+            }
+        } catch (error) {
+            console.error('Error parsing model response:', error);
+            // If there's an error parsing the response, use fallback search terms
+            newSearchTerms = Array.isArray(searchTerms) ? searchTerms : searchTerms.split(' ');
         }
+
+        console.log("New search terms:", newSearchTerms);
+
+        if (retryCount === 1) {
+            newSearchTerms = newSearchTerms.slice(0, 2); // Use first two terms
+        } else if (retryCount === 2) {
+            newSearchTerms = [newSearchTerms[0]]; // Use only the first term
+        } else if (retryCount === 3) {
+            newSearchTerms = originalQuery; // Use original query
+        }
+
+        return suggestBooks(newSearchTerms, retryCount, originalQuery);
     })
     .catch(error => {
         console.error('Error in retryWithModel:', error);
-        throw new Error("Failed to get book suggestions. Please try a different topic.");
+        // Instead of throwing an error, continue with the retry process
+        return suggestBooks(searchTerms, retryCount, originalQuery);
     });
 }
 
