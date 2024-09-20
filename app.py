@@ -1,5 +1,6 @@
 # app.py
 from flask import Flask, render_template, request, Response, stream_with_context
+from flask_cors import CORS
 from openai import OpenAI
 import json
 import os
@@ -23,11 +24,11 @@ def chat():
     user_message = data['message']
     
     if option == "Quiz me about":
-        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Create a quiz about {user_message} with 3 multiple-choice questions. Return the response as a JSON object with the following structure: {{\"questions\": [{{\"question\": \"...\", \"options\": [\"A. ...\", \"B. ...\", \"C. ...\", \"D. ...\"], \"correct_answer\": \"A\", \"explanation\": \"...\"}}]}}. Ensure the JSON is valid and contains exactly 3 questions."
+        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Create a quiz about {user_message} with 3 multiple-choice questions. Return the response as a JSON object with the following structure: {{\"questions\": [{{\"question\": \"...\", \"options\": [\"A. ...\", \"B. ...\", \"C. ...\", \"D. ...\"], \"correct_answer\": \"A\", \"explanation\": \"...\"}}]}}. Ensure the JSON is valid and contains exactly 3 questions. Return only valid JSON."
     elif option == "Give me flashcards about":
-        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Create a set of 5 flashcards about {user_message}. Return the response as a JSON object with the following structure: {{\"flashcards\": [{{\"front\": \"...\", \"back\": \"...\"}}]}}. Ensure the JSON is valid and contains exactly 5 flashcards."
+        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Create a set of 5 flashcards about {user_message}. Return the response as a JSON object with the following structure: {{\"flashcards\": [{{\"front\": \"...\", \"back\": \"...\"}}]}}. Ensure the JSON is valid and contains exactly 5 flashcards. Return only valid JSON."
     elif option == "Suggest Books about":
-        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Provide only 3 book title words about {user_message}. Return the response as a JSON object with the following structure: {{\"searchTerms\": [\"term1\", \"term2\", \"term3\"]}}. Ensure the JSON is valid and contains exactly 3 search terms."
+        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Provide only 3 book title words about {user_message}. Return the response as a JSON object with the following structure: {{\"searchTerms\": [\"term1\", \"term2\", \"term3\"]}}. Ensure the JSON is valid and contains exactly 3 search terms. Return only valid JSON."
     else:
         prompt = f"{option} {user_message}"
     

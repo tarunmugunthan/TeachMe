@@ -29,31 +29,31 @@
         }
     </script>
 </head>
-<body class="h-full flex flex-col">
-    <nav class="bg-gray-800 p-4">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 class="text-white font-bold text-xl">TeachMe 🧑🏻‍🏫</h1>
-        </div>
-    </nav>
-
-    <main class="flex-grow flex flex-col p-4 sm:p-6 lg:p-8 overflow-hidden">
-        <div id="chat-container" class="flex-grow border border-gray-300 rounded-lg overflow-y-auto mb-4 p-4"></div>
-        
-        <div id="input-area" class="sticky bottom-0 bg-gray-100 pt-4">
-            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                <select id="option-select" class="w-full sm:w-1/4 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
-                    <option value="Teach me about">Teach me about</option>
-                    <option value="Quiz me about">Quiz me about</option>
-                    <option value="Give me flashcards about">Give me flashcards about</option>
-                    <option value="Suggest Books about">Suggest Books about</option>
-                </select>
-                <input type="text" id="user-input" placeholder="Type your message..." class="w-full sm:flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
-                <button id="send-button" class="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-80 transition duration-150 ease-in-out">
-                    Send
-                </button>
+    <body class="h-screen flex flex-col">
+        <nav class="bg-gray-800 p-4 hidden sm:block">  <!-- Hide on mobile -->
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h1 class="text-white font-bold text-xl">TeachMe 🧑🏻‍🏫</h1>
             </div>
-        </div>
-    </main>
+        </nav>
+    
+        <main class="flex-grow flex flex-col p-4 sm:p-6 lg:p-8 overflow-hidden">
+            <div id="chat-container" class="flex-grow border border-gray-300 rounded-lg overflow-y-auto mb-4 p-4"></div>
+            
+            <div id="input-area" class="sticky bottom-0 bg-gray-100 pt-4">
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                    <select id="option-select" class="w-full sm:w-1/4 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                        <option value="Teach me about">Teach me about</option>
+                        <option value="Quiz me about">Quiz me about</option>
+                        <option value="Give me flashcards about">Give me flashcards about</option>
+                        <option value="Suggest Books about">Suggest Books about</option>
+                    </select>
+                    <input type="text" id="user-input" placeholder="Type your message..." class="w-full sm:flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary">
+                    <button id="send-button" class="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-md hover:bg-opacity-80 transition duration-150 ease-in-out">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </main>
 
     <script>
         $(document).ready(function() {
@@ -248,65 +248,76 @@
     }
 
     function suggestBooks(searchTerms, retryCount = 0) {
-        const query = searchTerms.join('_');
-        const url = `https://openlibrary.org/search.json?title=${query}&fields=author_name,isbn,key,title,subtitle&limit=10`;
+    const query = searchTerms.join('_');
+    const url = `https://openlibrary.org/search.json?title=${query}&fields=author_name,isbn,key,title,subtitle&limit=10`;
 
-        // Simple placeholder image as a data URI
-        const defaultImageUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const defaultImageUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
-        return fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                if (data.docs.length === 0 && retryCount < 1) {
-                    // If no books found and it's the first attempt, retry with the model
-                    console.log("No books found. Retrying with the model...");
-                    return retryWithModel(searchTerms);
-                }
-
-                if (data.docs.length === 0) {
-                    // If still no books found after retry, throw an error
-                    throw new Error("No books found on Open Library");
-                }
-
-                let booksHtml = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">';
-                data.docs.forEach(book => {
-                    const isbn = book.isbn ? book.isbn[0] : '';
-                    const imageUrl = isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg` : defaultImageUrl;
-                    const bookUrl = `https://openlibrary.org${book.key}`;
-                    booksHtml += `
-                        <a href="${bookUrl}" target="_blank" class="book-card bg-white rounded-lg shadow-md overflow-hidden flex flex-col hover:shadow-lg transition duration-300">
-                            <div class="h-48 overflow-hidden bg-gray-200 flex items-center justify-center">
-                                <img src="${imageUrl}" alt="${book.title}" class="w-full h-full object-contain" onerror="this.onerror=null; this.src='${defaultImageUrl}';">
-                            </div>
-                            <div class="p-4 flex-grow">
-                                <h3 class="font-bold text-lg mb-2 line-clamp-2">${book.title}</h3>
-                                ${book.subtitle ? `<p class="text-sm text-gray-600 mb-2 line-clamp-2">${book.subtitle}</p>` : ''}
-                                ${book.author_name ? `<p class="text-sm text-gray-500">By ${book.author_name.join(', ')}</p>` : ''}
-                            </div>
-                        </a>
-                    `;
-                });
-                booksHtml += '</div>';
-                return booksHtml;
-            });
-    }
-
-    function retryWithModel(searchTerms) {
-        // This function will make a new request to your backend to get new search terms from the model
-        return fetch('/chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({option: "Suggest Books about", message: searchTerms.join(' ')}),
-        })
+    return fetch(url)
         .then(response => response.json())
         .then(data => {
-            const newSearchTerms = JSON.parse(data.content).searchTerms;
-            console.log("New search terms from model:", newSearchTerms);
-            return suggestBooks(newSearchTerms, 1); // Retry with new terms, increment retry count
+            if (data.docs.length === 0 && retryCount < 1) {
+                console.log("No books found. Retrying with the model...");
+                return retryWithModel(searchTerms);
+            }
+
+            if (data.docs.length === 0) {
+                throw new Error("No books found on Open Library");
+            }
+
+            let booksHtml = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">';
+            data.docs.forEach(book => {
+                const isbn = book.isbn ? book.isbn[0] : '';
+                const imageUrl = isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg` : defaultImageUrl;
+                const bookUrl = `https://openlibrary.org${book.key}`;
+                booksHtml += `
+                    <a href="${bookUrl}" target="_blank" class="book-card bg-white rounded-lg shadow-md overflow-hidden flex flex-col hover:shadow-lg transition duration-300">
+                        <div class="h-48 overflow-hidden bg-gray-200 flex items-center justify-center">
+                            <img src="${imageUrl}" alt="${book.title}" class="w-full h-full object-contain" onerror="this.onerror=null; this.src='${defaultImageUrl}';">
+                        </div>
+                        <div class="p-4 flex-grow">
+                            <h3 class="font-bold text-lg mb-2 line-clamp-2">${book.title}</h3>
+                            ${book.subtitle ? `<p class="text-sm text-gray-600 mb-2 line-clamp-2">${book.subtitle}</p>` : ''}
+                            ${book.author_name ? `<p class="text-sm text-gray-500">By ${book.author_name.join(', ')}</p>` : ''}
+                        </div>
+                    </a>
+                `;
+            });
+            booksHtml += '</div>';
+            return booksHtml;
+        })
+        .catch(error => {
+            console.error('Error fetching books:', error);
+            return `<p>Sorry, it seems <a href="https://openlibrary.org/" target="_blank" class="text-blue-600 hover:underline">Open Library</a> doesn't have any matches. Please try again with other topics. Error: ${error.message}</p>`;
         });
-    }
+}
+
+    function retryWithModel(searchTerms) {
+    return fetch('/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({option: "Suggest Books about", message: searchTerms.join(' ')}),
+    })
+    .then(response => response.text())  // Change this line from response.json() to response.text()
+    .then(text => {
+        // Extract the JSON part from the response
+        const jsonMatch = text.match(/data: ({.*})/);
+        if (jsonMatch) {
+            const data = JSON.parse(jsonMatch[1]);
+            const newSearchTerms = JSON.parse(data.content).searchTerms.slice(0, 1);  // Take only first two keywords
+            console.log("New search terms from model:", newSearchTerms);
+            return suggestBooks(newSearchTerms, 1);
+        } else {
+            throw new Error("Invalid response format from the model");
+        }
+    })
+    .catch(error => {
+        console.error('Error in retryWithModel:', error);
+        throw new Error("Failed to get book suggestions. Please try a different topic.");
+    });
+}
 
     function sendMessage(option, message) {
         if (message.trim() === '') return;
@@ -328,6 +339,7 @@
         $('#chat-container').append(responseWrapper);
 
         let responseText = responseContainer.find('.response-text');
+        responseText.html('<p class="text-gray-500">Thinking...</p>');
 
         if (!chatStarted) {
             chatStarted = true;
@@ -374,7 +386,7 @@
                             try {
                                 const searchTerms = JSON.parse(fullResponse).searchTerms;
                                 console.log("Search terms returned by the model:", searchTerms);
-                                responseText.html('<p>Searching for books...</p>');
+                                responseText.html('<p class="text-gray-500">Searching for books...</p>');
                                 suggestBooks(searchTerms)
                                     .then(booksHtml => {
                                         responseText.html(booksHtml);
@@ -382,15 +394,11 @@
                                     })
                                     .catch(error => {
                                         console.error('Error fetching books:', error);
-                                        if (error.message === "No books found on Open Library") {
-                                            responseText.html('<p class="text-red-500">No books found on Open Library.</p>');
-                                        } else {
-                                            responseText.html('<p class="text-red-500">Error: Failed to fetch book suggestions.</p>');
-                                        }
+                                        responseText.html('<p class="text-gray-500">Sorry, it seems Open Library (https://openlibrary.org/) doesn\'t have any matches. Please try again with other titles.</p>');
                                     });
                             } catch (e) {
                                 console.error('Error parsing search terms JSON:', e);
-                                responseText.html('<p class="text-red-500">Error: Failed to generate book suggestions.</p>');
+                                responseText.html('<p class="text-gray-500">Error: Failed to generate book suggestions.</p>');
                             }
                         } else {
                             responseText.html(marked.parse(fullResponse));
