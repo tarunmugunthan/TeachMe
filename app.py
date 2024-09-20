@@ -28,7 +28,7 @@ def chat():
     elif option == "Give me flashcards about":
         prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Create a set of 5 flashcards about {user_message}. Return the response as a JSON object with the following structure: {{\"flashcards\": [{{\"front\": \"...\", \"back\": \"...\"}}]}}. Ensure the JSON is valid and contains exactly 5 flashcards. Return only valid JSON."
     elif option == "Suggest Books about":
-        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Provide only 3 book title words about {user_message}. Return the response as a JSON object with the following structure: {{\"searchTerms\": [\"term1\", \"term2\", \"term3\"]}}. Ensure the JSON is valid and contains exactly 3 search terms. Return only valid JSON."
+        prompt = f"Return only valid JSON. No plain text whatsoever. Return only valid JSON. Provide only 3 simple and obvious book title words about {user_message}. Return the response as a JSON object with the following structure: {{\"searchTerms\": [\"term1\", \"term2\", \"term3\"]}}. Ensure the JSON is valid and contains exactly 3 search terms. Return only valid JSON."
     else:
         prompt = f"{option} {user_message}"
     
